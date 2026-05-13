@@ -1,0 +1,5 @@
+data/
+APIKEY/
+__pycache__/
+output/
+*.ipynb_checkpoints/
