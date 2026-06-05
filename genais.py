@@ -1,22 +1,17 @@
-import os, glob, time, json, re, random, shutil
+import os, glob, time, json, re, random, shutil, pickle
 import base64, cv2
 import pandas as pd
 
 from typing import Dict, Any, List, Literal
-from pydantic import BaseModel, conlist
+from pydantic import BaseModel, conlist, Field
 from copy import deepcopy
 from datetime import datetime
 
-import torch
-import torch.nn.functional as F
-
 from openai import OpenAI
 import anthropic
-# import google.generativeai as genai #NOTE: previous version
-# from google.generativeai import types #NOTE: previous version
 
-from google import genai #NOTE: Not work in UM
-from google.genai import types #NOTE: Not work in UM
+from google import genai
+from google.genai import types
 
 import utils
 
@@ -24,11 +19,16 @@ API_KEY_JSON_PATH = "APIKEY/api_key.json"
 API_KEY_JSON = json.load(open(API_KEY_JSON_PATH, "r"))
 OPENAI_API_KEY = API_KEY_JSON["OpenAI_yong"]
 CLAUDE_API_KEY = API_KEY_JSON["Anthropic_yong"]
-
+GEMINI_API_KEY = API_KEY_JSON["Gemini_yong"]
 df_class_path = "data/action_classes.csv"
 df_class = pd.read_csv(df_class_path)
 action_classes = df_class["class"].tolist()
-action_classes.append("none")
+
+# with open("data/action_classes.pkl", "rb") as f:
+#     action_classes = pickle.load(f)
+if "none" not in action_classes:
+    action_classes.append("none")
+
 BASIC_PROMPT = f"""
 # ROLE:
 You are an expert construction manager analyzing video frames from construction site videos.
@@ -99,6 +99,85 @@ api_pricing_dict = {
 top_k = 1
 class StructuredResponse(BaseModel):
     action: conlist(Literal[tuple(action_classes)], min_length=top_k, max_length=top_k)
+
+ActionLiteral = Literal[tuple(action_classes)]
+class ActionSegment(BaseModel):
+    action: ActionLiteral
+    start_second: int = Field(ge=0)
+
+
+class StructuredVideoResponse(BaseModel):
+    segments: list[ActionSegment]
+
+VIDEO_PROMPT = f"""
+# ROLE:
+You are an expert construction manager analyzing construction site videos.
+
+# INSTRUCTION:
+Analyze the entire video and identify when each worker action starts.
+
+An action should be identified ONLY when the worker is actively performing a construction task through direct physical interaction with relevant work entities, such as:
+- tools
+- materials
+- construction equipment
+- building components
+
+Direct physical interaction means the worker's hand(s) are visibly in contact with the object(s) involved in the task.
+
+Return "none" when:
+- the worker is preparing to start a task
+- the worker is observing, waiting, walking, or idle
+- the worker's hands are not in active contact with relevant work objects
+- the visible action does not clearly match any provided action options
+- the worker is performing a non-target action outside the provided action list
+
+Choose ONLY from the provided action options below:
+{action_classes}
+
+You must detect action change points.
+For each continuous action segment, return ONLY:
+- the action label
+- the integer second when that action starts
+
+The end time of each action segment will be inferred as the next segment's start_second.
+Therefore, do NOT return end times.
+
+If an action is already happening at the beginning of the video, use start_second = 0.
+
+Be conservative.
+If the action is ambiguous or insufficiently visible, return "none".
+
+# OUTPUT FORMAT:
+Return a valid JSON object only.
+
+Schema:
+{{
+  "segments": [
+    ["action_name", start_second]
+  ]
+}}
+
+Rules:
+- "segments" must be a list of tuples/lists.
+- Each item must contain exactly two values: [action, start_second].
+- action must be one of the provided action options or "none".
+- start_second must be an integer.
+- start_second can be 0.
+- start_second values must be sorted in ascending order.
+- Do not include duplicate consecutive actions. If the same action continues, return only its first start_second.
+- Do not include explanations, markdown, or extra text.
+
+# EXAMPLE:
+Input: A video where the worker is idle from 0s, starts hammering at 3s, then starts carrying material at 8s.
+Output:
+{{
+  "segments": [
+    ["none", 0],
+    ["hammer", 3],
+    ["carry_material", 8]
+  ]
+}}
+"""
 
 class AgentOpenAI():
     def __init__(self, logger=None, model_name="gpt-5.4", api_key=OPENAI_API_KEY, region=None):
@@ -183,11 +262,97 @@ class AgentClaude():
         inference_time = end_time - start_time
         return action, inference_cost, inference_time
     
+
+class AgentGemini():
+    def __init__(self, logger=None, model_name="gemini-3.1-pro-preview", api_key=GEMINI_API_KEY, region=None):
+        self.logger = logger
+        self.model_name = model_name
+        self.pricing_dict = api_pricing_dict[model_name]
+        self.api_key = api_key
+        self.region = region
+        self.agent = genai.Client(api_key=api_key)
+        self.prompt = BASIC_PROMPT
+        self.max_tokens = 1024
+        self.image_media_type = "image/jpeg"
+
+    def inference_one_frame(self, frame_path, prompt=BASIC_PROMPT):
+        with open(frame_path, 'rb') as f:
+            image_bytes = f.read()
+        start_time = time.time()
+        
+        response = self.agent.models.generate_content(
+        model=self.model_name,
+        contents=[
+            types.Part.from_bytes(
+                data=image_bytes,
+                mime_type=self.image_media_type,
+            ),
+            prompt,
+        ],
+        config=types.GenerateContentConfig(
+        response_mime_type="application/json",
+        response_schema=StructuredResponse, # Pass the Pydantic class directly
+        ),
+        )
+        end_time = time.time()
+        
+        parsed = StructuredResponse.model_validate_json(response.text)
+        action = parsed.action[0]
+        inference_cost = (response.usage_metadata.prompt_token_count*self.pricing_dict["input_cost_per_1Mtks"] + response.usage_metadata.candidates_token_count*self.pricing_dict["output_cost_per_1Mtks"])/1000000
+        inference_time = end_time - start_time
+        return action, inference_cost, inference_time
+    
+    def inference_one_video(self, video_path, prompt=BASIC_PROMPT):
+        video_size_mb = os.path.getsize(video_path) / (1024 * 1024)
+        # print(f"Processing {video_path} (size: {video_size_mb:.2f} MB)")
+        
+        start_time = time.time()
+        if video_size_mb < 20:
+            video_bytes = open(video_path, 'rb').read()
+            response = self.agent.models.generate_content(
+                model=self.model_name, contents=types.Content(
+                    parts=[
+                        types.Part(
+                            inline_data=types.Blob(data=video_bytes, mime_type='video/mp4')
+                        ),
+                        types.Part(text=VIDEO_PROMPT)
+                    ]
+                ),
+                config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=StructuredVideoResponse, # Pass the Pydantic class directly
+                ),
+            )
+        else:
+            myfile = self.agent.files.upload(file=video_path)
+            time.sleep(10)
+            response = self.agent.models.generate_content(
+                model=self.model_name, contents=[myfile, VIDEO_PROMPT],
+                config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=StructuredVideoResponse, # Pass the Pydantic class directly
+                ),
+            )
+        end_time = time.time()
+        
+        parsed = StructuredVideoResponse.model_validate_json(response.text)
+        segments = parsed.segments
+        
+        inference_cost = (response.usage_metadata.prompt_token_count*self.pricing_dict["input_cost_per_1Mtks"] + response.usage_metadata.candidates_token_count*self.pricing_dict["output_cost_per_1Mtks"])/1000000
+        inference_time = end_time - start_time
+        return segments, inference_cost, inference_time
+
 if __name__ == "__main__":
     frame_path = "data/frames_fps1/clipped_0_11_cart_v1_8_214.jpg"
+    # frame_path = "data/demo.jpg"
     # agent = AgentOpenAI(model_name="gpt-5.4", api_key=OPENAI_API_KEY)
-    agent = AgentClaude(model_name="claude-haiku-4-5-20251001", api_key=CLAUDE_API_KEY)
-    action, inference_cost, inference_time = agent.inference_one_frame(frame_path)
-    print(action, inference_cost, inference_time)
+    # agent = AgentClaude(model_name="claude-haiku-4-5-20251001", api_key=CLAUDE_API_KEY)
+    agent = AgentGemini(model_name="gemini-3.1-pro-preview", api_key=GEMINI_API_KEY)
     
-    
+    # action, inference_cost, inference_time = agent.inference_one_frame(frame_path)
+    # print(action, inference_cost, inference_time)
+
+    video_path = "data/reconstructed_videos/clipped_0_11_cart_v1.mp4"
+    segments, inference_cost, inference_time = agent.inference_one_video(video_path)
+    segments = [(seg.action, seg.start_second) for seg in segments]
+    print(segments, inference_cost, inference_time)
