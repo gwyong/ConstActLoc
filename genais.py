@@ -325,7 +325,7 @@ class AgentGemini():
             )
         else:
             myfile = self.agent.files.upload(file=video_path)
-            time.sleep(10)
+            time.sleep(20)
             response = self.agent.models.generate_content(
                 model=self.model_name, contents=[myfile, VIDEO_PROMPT],
                 config=types.GenerateContentConfig(
