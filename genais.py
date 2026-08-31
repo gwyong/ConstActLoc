@@ -260,6 +260,9 @@ class AgentClaude():
         start_time = time.time()
         # message = self.agent.messages.create(model=self.model_name, max_tokens=self.max_tokens, messages=claude_input)
         message = self.agent.messages.parse(model=self.model_name, max_tokens=self.max_tokens, messages=claude_input, output_format=StructuredResponse)
+        if message.stop_reason == "refusal":
+            print("\nClaude refused to answer. Skipping this frame.")
+            return None, None, None
         end_time = time.time()
         action = message.parsed_output.action[0]
         inference_cost = (message.usage.input_tokens*self.pricing_dict["input_cost_per_1Mtks"] + message.usage.output_tokens*self.pricing_dict["output_cost_per_1Mtks"])/1000000

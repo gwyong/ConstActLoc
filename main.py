@@ -54,6 +54,8 @@ for frame_path in tqdm(frame_paths, desc="Processing frames"):
         continue
 
     action, inference_cost, inference_time = agent.inference_one_frame(frame_path)
+    if action is None:
+        continue  # Skip this frame if inference failed (e.g., due to refusal)
     result = {
         "frame_path": frame_path,
         "action": action,
