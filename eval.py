@@ -73,6 +73,20 @@ def evaluate_actions(
 ):
     pred_df = load_prediction_json(pred_json_path)
     gt_df = pd.read_csv(gt_csv_path)
+    ignore_basefilenames = [
+    "clipped_1_14_Semiautomatic_nail_gun_accidents",
+    "clipped_0_13_overhead_drilling_v1",
+    "clipped_0_15_Drill work for roof ceiling shorts viral youtubeshortvideo roof",
+    "clipped_0_22_fall ceiling drilling videoshot",
+    "clipped_165_203_How to FRAME a Wall - 3 EASY STEPS_1080p",
+    "clipped_0_19_Hand taping inside corners is always fun! LEVEL5 knifes always make the job easier",
+    "clipped_0_25_Finishing Drywall Butt Joints with LEVEL5 Hand Tools",
+    "clipped_0_11_Hard working Malaysia constructionworker",
+    "clipped_0_12_Amazing fastest work rebar tying skill",
+    "clipped_0_15_GUARANTEE",
+    "clipped_11_25_Rebar tying (2)"
+    ]
+    gt_df = gt_df[~gt_df["base_filename"].isin(ignore_basefilenames)].reset_index(drop=True)
 
     parsed = pred_df["frame_path"].apply(parse_frame_path)
     pred_df[["base_filename", "second", "frame_idx"]] = pd.DataFrame(
@@ -160,7 +174,6 @@ def evaluate_actions(
 
         eval_true.append(true_label)
         eval_pred.append(pred)
-
     all_labels = sorted(set(eval_true) | set(eval_pred))
 
     precision, recall, f1, support = precision_recall_fscore_support(
@@ -324,14 +337,16 @@ def compute_aggregated_recall(
 
 if __name__ == "__main__":
     # pred_json_path = "output/inference_results_gpt-5.4.json"
+    # pred_json_path = "output/inference_results_gpt-5.6-terra.json"
+    pred_json_path = "output/inference_results_gpt-5.6-luna.json"
     # pred_json_path = "output/inference_results_gpt-5.4-mini.json"
     # pred_json_path = "output/inference_results_claude-sonnet-4-6.json"
     # pred_json_path = "output/inference_results_claude-haiku-4-5-20251001.json"
-    # pred_json_path = "output/inference_results_gemini-3.1-pro-preview_video_gpt_format.json"
-    pred_json_path = "output/inference_results_gemini-3.1-flash-lite-preview_video_gpt_format.json"
+    # pred_json_path = "output/inference_results_gemini-3.1-pro-preview_videos_gpt_format.json"
+    # pred_json_path = "output/inference_results_gemini-3.5-flash-lite_videos_gpt_format.json"
     
     model_name = os.path.basename(pred_json_path).replace("inference_results_", "").replace(".json", "")
-    gt_csv_path = "data/GT_fully_annotated.csv"
+    gt_csv_path = "data/GT_merged.csv" # "data/GT_fully_annotated.csv"
     results = evaluate_actions(
         pred_json_path=pred_json_path,
         gt_csv_path=gt_csv_path,

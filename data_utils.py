@@ -5,6 +5,8 @@ import yt_dlp
 from pathlib import Path
 from moviepy import VideoFileClip
 
+import utils
+
 def extract_gif_from_video(video_path, start_time, end_time, output_gif_path="", fps=10, width=480):
     clip = VideoFileClip(video_path).subclipped(start_time, end_time)
     resized_clip = clip.resized(width=width) 
@@ -42,6 +44,7 @@ def download_video(
     url,
     download_dir="videos/youtube",
     title_length_limit=100,
+    download_sections=None,
     # ffmpeg_path=r"C:\Users\gwyong1\Downloads\ffmpeg-8.0.1-essentials_build\bin\ffmpeg.exe",
 ):
     os.makedirs(download_dir, exist_ok=True)
@@ -54,18 +57,31 @@ def download_video(
         title = info.get("title", "video")
 
     safe_title = clean_filename(title, title_length_limit)
+    if download_sections is not None:
+        safe_title = f"clipped_{download_sections[0]}_{download_sections[1]}_{safe_title}"
     outtmpl = os.path.join(download_dir, f"{safe_title}.%(ext)s")
 
-    ydl_opts = {
-        "outtmpl": outtmpl,
-        "format": "bv*+ba/b",          # 최고 화질 video + 최고 음질 audio, 안 되면 best fallback
-        "merge_output_format": "mp4",  # 최종 mp4로 병합
-        # "ffmpeg_location": ffmpeg_path,
-        "noplaylist": True,
-        "quiet": False,
-        # "sleep_interval_requests": 5,
-        "cookiefile": r"C:\Users\17346\Downloads\www.youtube.com_cookies.txt",
-    }
+    if download_sections is None:
+        ydl_opts = {
+            "outtmpl": outtmpl,
+            # "format": "bv*+ba/b", # 최고 화질 video + 최고 음질 audio, 안 되면 best fallback
+            "format": "bestvideo[height<=1080][ext=mp4]", # 동영상만 저장
+            "merge_output_format": "mp4", # 최종 mp4로 병합
+            # "ffmpeg_location": ffmpeg_path,
+            "noplaylist": True,
+            "quiet": False,
+            # "sleep_interval_requests": 5,
+            # "cookiefile": r"C:\Users\17346\Downloads\www.youtube.com_cookies.txt",
+        }
+    else:
+        ydl_opts = {
+            "outtmpl": outtmpl,
+            "format": "bestvideo[height<=1080][ext=mp4]",
+            "merge_output_format": "mp4",
+            "noplaylist": True,
+            "quiet": False,
+            "download_sections": [f"*{download_sections[0]}-{download_sections[1]}"],
+        }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
@@ -129,3 +145,28 @@ def extract_frames(video_path: Path, target_fps: int = 8, save_1fps: bool = True
             )
 
     cap.release()
+
+def video_key_from_video_path(video_path):
+    return os.path.splitext(os.path.basename(utils.clean_path(video_path)))[0]
+
+def parse_frame_path(frame_path):
+    base = os.path.basename(utils.clean_path(frame_path))
+    stem = os.path.splitext(base)[0]
+    m = re.search(r"_(\d+)_(\d+)$", stem)
+    if not m:
+        raise ValueError(f"Cannot parse frame path: {frame_path}")
+    video_key = stem[:m.start()]
+    second = int(m.group(1))
+    frame_idx = int(m.group(2))
+    return video_key, second, frame_idx
+
+def action_at_second(segments, second):
+    # segments: [[action, start_second], ...]
+    segments = sorted(segments, key=lambda x: int(x[1]))
+    action = segments[0][0] if segments else "none"
+    for seg_action, start in segments:
+        if second >= int(start):
+            action = seg_action
+        else:
+            break
+    return action

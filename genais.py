@@ -67,6 +67,8 @@ Output: "action": "hammer"
 """
 
 api_pricing_dict = {
+    "gpt-5.6-terra": {"input_cost_per_1Mtks": 2.0, "cache_cost_per_1Mtks": 0.5, "output_cost_per_1Mtks": 12.0}, # 2026.02.16 Knowledge Cutoff
+    "gpt-5.6-luna": {"input_cost_per_1Mtks": 0.2, "cache_cost_per_1Mtks": 0.08, "output_cost_per_1Mtks": 1.2}, # 2026.02.16 Knowledge Cutoff
     "gpt-5.5": {"input_cost_per_1Mtks": 5.0, "cache_cost_per_1Mtks": 0.5, "output_cost_per_1Mtks": 30.0}, # 2025.12.01 Knowledge Cutoff
     "gpt-5.4": {"input_cost_per_1Mtks": 2.5, "cache_cost_per_1Mtks": 0.175, "output_cost_per_1Mtks": 15.0}, # 2025.08.31
     "gpt-5.4-mini": {"input_cost_per_1Mtks": 0.75, "cache_cost_per_1Mtks": 0.08, "output_cost_per_1Mtks": 4.5}, # 2025.08.31
@@ -82,10 +84,12 @@ api_pricing_dict = {
     "claude-sonnet-4-5-20250929": {"input_cost_per_1Mtks": 3.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 15.0}, # Will be retired 2026.09.29
     # "claude-4-5-sonnet-latest": {"input_cost_per_1Mtks": 3.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 15.0},
     "claude-sonnet-4-6": {"input_cost_per_1Mtks": 3.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 15.0}, # 2025.08
+    "claude-sonnet-5": {"input_cost_per_1Mtks": 2.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 10.0}, # 2026.01
     "claude-haiku-4-5-20251001": {"input_cost_per_1Mtks": 1.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 5.0}, # 2025.02
     "claude-opus-4-7": {"input_cost_per_1Mtks": 5.0, "cache_cost_per_1Mtks": 3.75, "output_cost_per_1Mtks": 25.0}, # 2026.01
     "gemini-3.1-pro-preview": {"input_cost_per_1Mtks": 2.0, "cache_cost_per_1Mtks": 0.2, "output_cost_per_1Mtks": 12.0}, # 2025.01
     "gemini-3.1-flash-lite-preview": {"input_cost_per_1Mtks": 0.25, "cache_cost_per_1Mtks": 0.025, "output_cost_per_1Mtks": 1.5}, # 2025.01
+    "gemini-3.5-flash-lite": {"input_cost_per_1Mtks": 0.30, "cache_cost_per_1Mtks": 0.03, "output_cost_per_1Mtks": 2.5}, # 2026.07
     "gemini-3-pro-preview": {"input_cost_per_1Mtks": 2.0, "cache_cost_per_1Mtks": 0.2, "output_cost_per_1Mtks": 12.0},
     "gemini-3-flash-preview": {"input_cost_per_1Mtks": 0.25, "cache_cost_per_1Mtks": 0.025, "output_cost_per_1Mtks": 1.5}, # 2025.01
     # "gemini-2.5-pro-preview-06-05": {"input_cost_per_1Mtks": 1.25, "cache_cost_per_1Mtks": 0.00, "output_cost_per_1Mtks": 10.0},
