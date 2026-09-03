@@ -338,11 +338,12 @@ def compute_aggregated_recall(
 if __name__ == "__main__":
     # pred_json_path = "output/inference_results_gpt-5.4.json"
     # pred_json_path = "output/inference_results_gpt-5.6-terra.json"
-    pred_json_path = "output/inference_results_gpt-5.6-luna.json"
+    # pred_json_path = "output/inference_results_gpt-5.6-luna.json"
     # pred_json_path = "output/inference_results_gpt-5.4-mini.json"
     # pred_json_path = "output/inference_results_claude-sonnet-4-6.json"
+    # pred_json_path = "output/inference_results_claude-sonnet-5.json"
     # pred_json_path = "output/inference_results_claude-haiku-4-5-20251001.json"
-    # pred_json_path = "output/inference_results_gemini-3.1-pro-preview_videos_gpt_format.json"
+    pred_json_path = "output/inference_results_gemini-3.1-pro-preview_videos_gpt_format.json"
     # pred_json_path = "output/inference_results_gemini-3.5-flash-lite_videos_gpt_format.json"
     
     model_name = os.path.basename(pred_json_path).replace("inference_results_", "").replace(".json", "")

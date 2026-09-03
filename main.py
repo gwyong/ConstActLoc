@@ -5,7 +5,7 @@ import genais
 
 API_KEY_JSON_PATH = "APIKEY/api_key.json"
 API_KEY_JSON = json.load(open(API_KEY_JSON_PATH, "r"))
-OPENAI_API_KEY = API_KEY_JSON["OpenAI_UM"] # OpenAI_yong
+OPENAI_API_KEY = API_KEY_JSON["OpenAI_yong"] # OpenAI_yong
 CLAUDE_API_KEY = API_KEY_JSON["Anthropic_yong"]
 GEMINI_API_KEY = API_KEY_JSON["Gemini_yong"]
 
@@ -13,17 +13,19 @@ fps = 1
 data_dir = f"data/frames_fps{fps}"
 frame_paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".jpg")]
 
-#model_name = "gpt-5.6-terra" # "gpt-5.4"
+# model_name = "gpt-5.6-terra" # "gpt-5.4"
 # model_name = "gpt-5.6-luna" # "gpt-5.4-mini"
 # agent = genais.AgentOpenAI(model_name=model_name, api_key=OPENAI_API_KEY)
 
-model_name = "claude-sonnet-5" # "claude-sonnet-4-6"
+# model_name = "claude-sonnet-5" # "claude-sonnet-4-6"
 # model_name = "claude-haiku-4-5-20251001"
-agent = genais.AgentClaude(model_name=model_name, api_key=CLAUDE_API_KEY)
+# agent = genais.AgentClaude(model_name=model_name, api_key=CLAUDE_API_KEY)
 
 # model_name = "gemini-3.1-pro-preview"
 # agent = genais.AgentGemini(model_name=model_name, api_key=GEMINI_API_KEY)
 
+model_name = "qwen3.8:27b"
+agent = genais.AgentOllama(model_name=model_name, api_key=genais.OLLAMA_API_KEY)
 ignore_basefilenames = [
     "clipped_1_14_Semiautomatic_nail_gun_accidents",
     "clipped_0_13_overhead_drilling_v1",
@@ -65,4 +67,7 @@ for frame_path in tqdm(frame_paths, desc="Processing frames"):
     with open(output_json_path, "a") as f:
         json.dump(result, f)
         f.write("\n")
+
+    if model_name == "qwen3.8:27b":
+        continue  # No need to sleep for Ollama
     time.sleep(0.1)

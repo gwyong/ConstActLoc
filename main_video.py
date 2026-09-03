@@ -12,8 +12,8 @@ data_dir = "data/reconstructed_videos"
 data_dir = "data/clipped"
 video_paths = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith(".mp4")]
 
-# model_name = "gemini-3.1-pro-preview"
-model_name = "gemini-3.5-flash-lite"
+model_name = "gemini-3.1-pro-preview"
+# model_name = "gemini-3.5-flash-lite"
 agent = genais.AgentGemini(model_name=model_name, api_key=GEMINI_API_KEY)
 output_json_path = f"output/inference_results_{model_name}_videos.json"
 

@@ -20,6 +20,7 @@ API_KEY_JSON = json.load(open(API_KEY_JSON_PATH, "r"))
 OPENAI_API_KEY = API_KEY_JSON["OpenAI_yong"]
 CLAUDE_API_KEY = API_KEY_JSON["Anthropic_yong"]
 GEMINI_API_KEY = API_KEY_JSON["Gemini_yong"]
+OLLAMA_API_KEY = API_KEY_JSON["Ollama_yong"]
 df_class_path = "data/action_classes.csv"
 df_class = pd.read_csv(df_class_path)
 action_classes = df_class["class"].tolist()
@@ -98,6 +99,7 @@ api_pricing_dict = {
     # "gemini-2.0-flash-exp": {"input_cost_per_1Mtks": 1.25, "cache_cost_per_1Mtks": 0.00, "output_cost_per_1Mtks": 5.0},
     # "gemini-2.0-flash": {"input_cost_per_1Mtks": 0.1, "cache_cost_per_1Mtks": 0.4, "output_cost_per_1Mtks": 1.0},
     # "gemini-1.5-pro": {"input_cost_per_1Mtks": 1.25, "cache_cost_per_1Mtks": 0.3125, "output_cost_per_1Mtks": 5.0},
+    "qwen3.8:27b": {"input_cost_per_1Mtks": 0.0, "cache_cost_per_1Mtks": 0.0, "output_cost_per_1Mtks": 0.0},
 }
 
 top_k = 1
@@ -349,6 +351,54 @@ class AgentGemini():
         inference_time = end_time - start_time
         return segments, inference_cost, inference_time
 
+
+class AgentOllama():
+    def __init__(self, logger=None, model_name="qwen3.8:27b", api_key=OLLAMA_API_KEY, region=None):
+        """
+        Initialize OpenAI Agent class.
+        Args:
+            logger (Logger): Logger instance for logging information. NOTE: Unused.
+            model_name (str): Name of the model to use. Defaults to "gpt-5.4".
+            api_key (str): API key for authentication.
+            region (str, optional): Region for the API. Defaults to None. NOTE: Unused.
+            size limit: Up to 512 MB
+        """
+        self.logger = logger
+        self.model_name = model_name
+        self.pricing_dict = api_pricing_dict[model_name]
+        self.api_key = api_key
+        self.region = region
+        self.agent = OpenAI(
+            base_url='http://localhost:11434/v1/',
+            api_key=api_key,
+        )
+        self.prompt = BASIC_PROMPT
+    
+    def inference_one_frame(self, frame_path, prompt=BASIC_PROMPT):
+        base64_frame = utils.encode_image(frame_path)
+        ollama_input = [
+                {
+                    "role": "user",
+                    "content": [
+                        { "type": "input_text", "text": prompt },
+                        {
+                            "type": "input_image",
+                            "image_url": f"data:image/jpeg;base64,{base64_frame}",
+                            "detail": "auto"
+                        },
+                    ],
+                }
+            ]
+        start_time = time.time()
+        response = self.agent.responses.parse(model=self.model_name, input=ollama_input, text_format=StructuredResponse)
+        end_time = time.time()
+        action = response.output_parsed.action[0]
+        inference_cost = 0
+        inference_time = end_time - start_time
+        return action, inference_cost, inference_time
+
+
+    
 if __name__ == "__main__":
     frame_path = "data/frames_fps1/clipped_0_11_cart_v1_8_214.jpg"
     # frame_path = "data/demo.jpg"
